@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AutoVault</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="logo">AutoVault</a>
+  <div>
+    <a href="browse.html">Browse</a>
+    <a href="post.html">Post a listing</a>
+    <a href="contact.html">Contact</a>
+  </div>
+</nav>
+<main>
+  <div id="content"><p>Loading...</p></div>
+</main>
+<script src="js/common.js"></script>
+<script>
+  const id = new URLSearchParams(location.search).get('id');
+
+  async function init() {
+    try {
+      const c = await api('/api/listings/' + id);
+      const reviews = await api('/api/dealers/' + c.dealer_id + '/reviews');
+      const photo = esc((c.photos[0] && c.photos[0].url) || 'https://placehold.co/800x500/16161a/d90429?text=No+photo');
+      document.title = c.title + ' | AutoVault';
+      document.getElementById('content').innerHTML = `
+        <h1>${esc(c.title)}</h1>
+        <div class="detail">
+          <div>
+            <img src="${photo}" alt="${esc(c.title)}">
+            <div class="panel">
+              <p class="price">${money(c.price)}</p>
+              <p>${c.year} · ${esc(c.fuel_type)} · ${esc(c.transmission)} · ${Number(c.mileage).toLocaleString()} km</p>
+              <p style="margin-top:10px">${esc(c.description || '')}</p>
+              <div style="margin-top:10px">${c.features.map((f) => `<span class="tag">${esc(f)}</span>`).join('')}</div>
+            </div>
+            <div class="panel">
+              <h3>Dealer reviews</h3>
+              ${reviews.map((r) => `<div class="review">
+                <span class="stars">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</span>
+                <strong> ${esc(r.reviewer_name)}</strong>
+                <p>${esc(r.comment || '')}</p></div>`).join('') || '<p>No reviews yet.</p>'}
+            </div>
+          </div>
+          <div>
+            <div class="panel">
+              <h3>${esc(c.dealer_name)}</h3>
+              <p>${esc(c.dealer_location || '')}</p>
+              <p>${esc(c.dealer_phone || '')}</p>
+            </div>
+            <div class="panel">
+              <h3>Send an inquiry</h3>
+              <form id="inq">
+                <input name="name" placeholder="Your name" required>
+                <input name="email" type="email" placeholder="Email" required>
+                <input name="phone" placeholder="Phone (optional)">
+                <textarea name="message" rows="4" placeholder="I'm interested in this car..." required></textarea>
+                <button class="btn" type="submit">Send inquiry</button>
+              </form>
+            </div>
+          </div>
+        </div>`;
+
+      document.getElementById('inq').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = Object.fromEntries(new FormData(e.target));
+        body.listing_id = Number(id);
+        try {
+          await api('/api/inquiries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          toast('Inquiry sent!');
+          e.target.reset();
+        } catch (err) { toast(err.message, false); }
+      });
+    } catch (e) {
+      document.getElementById('content').innerHTML = '<p>Listing not found.</p>';
+      toast(e.message, false);
+    }
+  }
+  init();
+</script>
+</body></html>

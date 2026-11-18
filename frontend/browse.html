@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Browse | AutoVault</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="logo">AutoVault</a>
+  <div>
+    <a href="browse.html">Browse</a>
+    <a href="post.html">Post a listing</a>
+    <a href="contact.html">Contact</a>
+  </div>
+</nav>
+<main>
+  <h1>Browse cars</h1>
+  <div class="filters">
+    <input id="q" placeholder="Search make or model">
+    <select id="fuel">
+      <option value="">Any fuel</option>
+      <option>Petrol</option><option>Diesel</option><option>Hybrid</option><option>Electric</option>
+    </select>
+    <input id="minPrice" type="number" placeholder="Min price">
+    <input id="maxPrice" type="number" placeholder="Max price">
+  </div>
+  <p id="count" style="margin-top:12px;color:var(--muted)"></p>
+  <div class="grid" id="grid"></div>
+</main>
+<script src="js/common.js"></script>
+<script>
+  const ids = ['q', 'fuel', 'minPrice', 'maxPrice'];
+  async function load() {
+    const params = new URLSearchParams();
+    ids.forEach((id) => { const v = document.getElementById(id).value.trim(); if (v) params.set(id, v); });
+    try {
+      const cars = await api('/api/listings?' + params.toString());
+      document.getElementById('count').textContent = cars.length + ' cars found';
+      document.getElementById('grid').innerHTML = cars.map(carCard).join('') || '<p>No cars match.</p>';
+    } catch (e) { toast(e.message, false); }
+  }
+  ids.forEach((id) => document.getElementById(id).addEventListener('input', load));
+  load();
+</script>
+</body></html>

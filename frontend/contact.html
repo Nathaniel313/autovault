@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contact | AutoVault</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="logo">AutoVault</a>
+  <div>
+    <a href="browse.html">Browse</a>
+    <a href="post.html">Post a listing</a>
+    <a href="contact.html">Contact</a>
+  </div>
+</nav>
+<main>
+  <h1>Contact us</h1>
+  <form id="contact">
+    <input name="name" placeholder="Your name" required>
+    <input name="email" type="email" placeholder="Email" required>
+    <input name="phone" placeholder="Phone (optional)">
+    <textarea name="message" rows="5" placeholder="How can we help?" required></textarea>
+    <button class="btn" type="submit">Send message</button>
+  </form>
+</main>
+<script src="js/common.js"></script>
+<script>
+  document.getElementById('contact').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(e.target));
+    try {
+      await api('/api/inquiries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      toast('Message sent!');
+      e.target.reset();
+    } catch (err) { toast(err.message, false); }
+  });
+</script>
+</body></html>

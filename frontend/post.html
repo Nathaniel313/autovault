@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Post a listing | AutoVault</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="logo">AutoVault</a>
+  <div>
+    <a href="browse.html">Browse</a>
+    <a href="post.html">Post a listing</a>
+    <a href="contact.html">Contact</a>
+  </div>
+</nav>
+<main>
+  <h1>Post a listing</h1>
+  <form id="post">
+    <select name="dealer_id" id="dealer" required><option value="">Select dealer</option></select>
+    <input name="title" placeholder="Title (e.g. Toyota Camry SE)" required>
+    <input name="make" placeholder="Make" required>
+    <input name="model" placeholder="Model" required>
+    <input name="year" type="number" placeholder="Year" required>
+    <input name="price" type="number" placeholder="Price (GH₵)" required>
+    <input name="mileage" type="number" placeholder="Mileage (km)">
+    <select name="fuel_type"><option>Petrol</option><option>Diesel</option><option>Hybrid</option><option>Electric</option></select>
+    <select name="transmission"><option>Automatic</option><option>Manual</option></select>
+    <input name="location" placeholder="Location">
+    <input name="photo_url" placeholder="Photo URL (optional)">
+    <input name="features" placeholder="Features, comma separated">
+    <textarea name="description" rows="4" placeholder="Description"></textarea>
+    <button class="btn" type="submit">Post listing</button>
+  </form>
+</main>
+<script src="js/common.js"></script>
+<script>
+  api('/api/dealers').then((ds) => {
+    document.getElementById('dealer').innerHTML += ds.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  });
+
+  document.getElementById('post').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(e.target));
+    body.features = (body.features || '').split(',').map((s) => s.trim()).filter(Boolean);
+    try {
+      const { id } = await api('/api/listings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      toast('Listing posted!');
+      setTimeout(() => { location.href = 'listing.html?id=' + id; }, 800);
+    } catch (err) { toast(err.message, false); }
+  });
+</script>
+</body></html>
