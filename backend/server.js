@@ -3,11 +3,15 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const mysql = require('mysql2/promise');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
+const server = http.createServer(app);
+const io = new Server(server);
 
 const db = mysql.createPool({
   host: process.env.DB_HOST,
@@ -128,5 +132,44 @@ app.post('/api/inquiries', wrap(async (req, res) => {
   res.status(201).json({ id: result.insertId });
 }));
 
+// ---------- Auctions ----------
+async function getAuctionState(auctionId) {
+  const [[auction]] = await db.query(
+    `SELECT id, listing_id, starting_price,
+            GREATEST(TIMESTAMPDIFF(SECOND, NOW(), ends_at), 0) AS seconds_left
+     FROM auctions WHERE id = ?`, [auctionId]);
+  if (!auction) return null;
+  const [bids] = await db.query(
+    'SELECT bidder_name, amount, created_at FROM bids WHERE auction_id = ? ORDER BY amount DESC, id DESC LIMIT 10',
+    [auctionId]);
+  return { ...auction, bids, highest: bids.length ? Number(bids[0].amount) : null };
+}
+
+app.get('/api/auctions/by-listing/:listingId', wrap(async (req, res) => {
+  const [rows] = await db.query('SELECT id FROM auctions WHERE listing_id = ?', [req.params.listingId]);
+  if (!rows.length) return res.status(404).json({ error: 'No auction for this listing' });
+  res.json(await getAuctionState(rows[0].id));
+}));
+
+app.post('/api/auctions/:id/bids', wrap(async (req, res) => {
+  const { bidder_name } = req.body;
+  const amount = Number(req.body.amount);
+  if (!bidder_name || !amount) return res.status(400).json({ error: 'Name and amount are required' });
+  const state = await getAuctionState(req.params.id);
+  if (!state) return res.status(404).json({ error: 'Auction not found' });
+  if (state.seconds_left <= 0) return res.status(400).json({ error: 'This auction has ended' });
+  const minimum = state.highest === null ? Number(state.starting_price) : state.highest + 1;
+  if (amount < minimum) return res.status(400).json({ error: 'Bid must be at least ' + minimum });
+  await db.query('INSERT INTO bids (auction_id, bidder_name, amount) VALUES (?, ?, ?)',
+    [req.params.id, bidder_name, amount]);
+  const updated = await getAuctionState(req.params.id);
+  io.to('auction:' + req.params.id).emit('auction-update', updated);
+  res.status(201).json(updated);
+}));
+
+io.on('connection', (socket) => {
+  socket.on('join', (auctionId) => socket.join('auction:' + auctionId));
+});
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`AutoVault running on http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`AutoVault running on http://localhost:${PORT}`));

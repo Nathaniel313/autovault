@@ -19,6 +19,7 @@
 <main>
   <div id="content"><p>Loading...</p></div>
 </main>
+<script src="/socket.io/socket.io.js"></script>
 <script src="js/common.js"></script>
 <script>
   const id = new URLSearchParams(location.search).get('id');
@@ -40,6 +41,7 @@
               <p style="margin-top:10px">${esc(c.description || '')}</p>
               <div style="margin-top:10px">${c.features.map((f) => `<span class="tag">${esc(f)}</span>`).join('')}</div>
             </div>
+                        <div class="panel" id="auction" style="display:none"></div>
             <div class="panel">
               <h3>Dealer reviews</h3>
               ${reviews.map((r) => `<div class="review">
@@ -82,6 +84,73 @@
       toast(e.message, false);
     }
   }
-  init();
+    async function initAuction() {
+    const box = document.getElementById('auction');
+    if (!box) return;
+    let a;
+    try { a = await api('/api/auctions/by-listing/' + id); } catch (e) { return; }
+    box.style.display = 'block';
+    let secondsLeft = a.seconds_left;
+
+    box.innerHTML = `
+      <h3>Live auction</h3>
+      <p>Current bid</p>
+      <p class="price" id="a-high"></p>
+      <p>Time left: <strong id="a-time"></strong></p>
+      <form id="bid">
+        <input name="bidder_name" placeholder="Your name" required>
+        <input name="amount" type="number" placeholder="Your bid (GH₵)" required>
+        <button class="btn" type="submit">Place bid</button>
+      </form>
+      <div id="a-bids" style="margin-top:10px"></div>`;
+
+    function render(s) {
+      secondsLeft = s.seconds_left;
+      document.getElementById('a-high').textContent =
+        s.highest === null ? 'No bids yet. Starts at ' + money(s.starting_price) : money(s.highest);
+      document.getElementById('a-bids').innerHTML = s.bids.map((b) =>
+        `<div class="review"><strong>${esc(b.bidder_name)}</strong> ${money(b.amount)}</div>`).join('');
+    }
+
+    function tick() {
+      const el = document.getElementById('a-time');
+      if (!el) return;
+      if (secondsLeft <= 0) {
+        el.textContent = 'Ended';
+        document.querySelector('#bid button').disabled = true;
+        return;
+      }
+      const d = Math.floor(secondsLeft / 86400);
+      const h = Math.floor((secondsLeft % 86400) / 3600);
+      const m = Math.floor((secondsLeft % 3600) / 60);
+      const s = secondsLeft % 60;
+      el.textContent = `${d}d ${h}h ${m}m ${s}s`;
+      secondsLeft--;
+    }
+
+    render(a);
+    tick();
+    setInterval(tick, 1000);
+
+    const socket = io();
+    socket.emit('join', a.id);
+    socket.on('auction-update', render);
+
+    document.getElementById('bid').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const body = Object.fromEntries(new FormData(e.target));
+      try {
+        await api('/api/auctions/' + a.id + '/bids', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        toast('Bid placed!');
+        e.target.amount.value = '';
+      } catch (err) { toast(err.message, false); }
+    });
+  }
+
+  init().then(initAuction);
 </script>
 </body></html>
